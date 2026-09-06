@@ -53,9 +53,8 @@ Dézoomé, chaque event est placé sur le **centroïde du pays** (évite l'empil
 server/
   server.js        # Express + SSE + bootstrap
   aggregator.js    # collecte, dédoublonnage, diffusion
-  sources.js       # liste des flux RSS / subreddits
+  sources.js       # liste des flux RSS
   rssParser.js     # parseur RSS (fast-xml-parser)
-  redditParser.js  # parseur JSON Reddit
   fetchClient.js   # fetch avec timeout + retries
   geo.js           # détection pays par mots-clés
 public/

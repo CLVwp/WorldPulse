@@ -1,9 +1,8 @@
 // Agrégateur : collecte toutes les sources, déduit le pays, déduplique,
 // et diffuse les nouveaux events aux abonnés SSE.
-import { RSS_SOURCES, REDDIT_SOURCES } from "./sources.js";
+import { RSS_SOURCES } from "./sources.js";
 import { fetchWithTimeout } from "./fetchClient.js";
 import { parseRss } from "./rssParser.js";
-import { parseReddit } from "./redditParser.js";
 import { detectCountry, detectCity, getCountry } from "./geo.js";
 
 const MAX_ITEMS = 400;
@@ -40,10 +39,8 @@ export function getStats() {
   };
 }
 
-export function getRecentItems({ since = null, limit = 200 } = {}) {
-  const list = [...itemsById.values()].sort((a, b) => b.timestamp - a.timestamp);
-  const filtered = since ? list.filter((i) => i.timestamp > since) : list;
-  return filtered.slice(0, limit);
+export function getRecentItems({ limit = 200 } = {}) {
+  return [...itemsById.values()].sort((a, b) => b.timestamp - a.timestamp).slice(0, limit);
 }
 
 function pushItem(item) {
@@ -96,19 +93,15 @@ function broadcast(events) {
 
 async function fetchOne(source) {
   try {
-    const text = await fetchWithTimeout(source.url, { browserUa: source.url.includes("reddit.com") });
-    const raw = source.url.includes("reddit.com")
-      ? parseReddit(text, source)
-      : parseRss(text, source);
-    return { source, items: raw, error: null };
+    const text = await fetchWithTimeout(source.url);
+    return { source, items: parseRss(text, source), error: null };
   } catch (err) {
     return { source, items: [], error: err.message };
   }
 }
 
 export async function refreshAll() {
-  const all = [...RSS_SOURCES.map((s) => ({ ...s, _t: "rss" })), ...REDDIT_SOURCES.map((s) => ({ ...s, _t: "reddit" }))];
-  const results = await Promise.all(all.map(fetchOne));
+  const results = await Promise.all(RSS_SOURCES.map(fetchOne));
 
   const fresh = [];
   for (const { items } of results) {
@@ -131,19 +124,4 @@ export async function refreshAll() {
   return lastFetchStats;
 }
 
-// Déduplication "fuzzy" : titres quasi identiques entre sources.
-export function dedupeSimilar() {
-  const seen = new Map();
-  for (const [id, item] of itemsById) {
-    const key = normalizeTitle(item.title);
-    if (seen.has(key)) {
-      itemsById.delete(id); // doublon
-    } else {
-      seen.set(key, id);
-    }
-  }
-}
-
-function normalizeTitle(t) {
-  return String(t).toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
-}
+// Dédup : l'ID (source:hash) suffit — pas de fuzzy matching.

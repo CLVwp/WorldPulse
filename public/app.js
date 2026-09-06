@@ -12,7 +12,6 @@ const map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-left");
 map.dragPan.enable();
 
-const markers = new Map(); // eventId -> maplibregl.Marker
 let activeSource = "all";   // filtre du flux ET de la carte
 
 // --- Éléments ---------------------------------------------------------------
@@ -25,7 +24,6 @@ const $detail = document.getElementById("detail");
 const $legend = document.getElementById("legend");
 const $sourceFilter = document.getElementById("source-filter");
 
-let totalCount = 0;
 let eventsStore = new Map(); // id -> event (pour re-render au zoom)
 let currentZoom = 1.6;
 
@@ -118,11 +116,6 @@ function applyMarkerStyle(g) {
     }
     badge.textContent = g.events.length;
   } else if (badge) badge.remove();
-}
-
-function updateMarkerPosition(ev) {
-  // Recalcule les groupes (les clés de position changent au passage du zoom 3)
-  rebuildGroups();
 }
 
 // --- Bloc détail avec navigation multi-articles ------------------------------------
@@ -348,14 +341,12 @@ function connectStream() {
 }
 
 // --- Chargement initial + retry (le serveur peut être en cours de démarrage) --------
-let initialLoaded = false;
 
 async function loadInitial() {
   try {
     const res = await fetch("/api/events?limit=300");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    initialLoaded = true;
     handleEvents(data.events, { animate: false });
     if (data.lastFetchAt) {
       $lastScan.dataset.ts = String(Date.parse(data.lastFetchAt));

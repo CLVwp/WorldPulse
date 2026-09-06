@@ -20,7 +20,5 @@ export const RSS_SOURCES = [
   { id: "timesofindia", name: "Times of India", url: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", lang: "en" },
 ];
 
-// Subreddits d'actualité : désactivés — Reddit bloque les clients non-navigateurs (403
-// quel que soit le User-Agent, fingerprint TLS détecté). À réactiver via un proxy
-// dédié ou une clé API Reddit officielle le cas échéant.
-export const REDDIT_SOURCES = [];
+// Subreddits d'actualité : désactivés — Reddit bloque les clients non-navigateurs (403).
+// Réactivation possible via API Reddit officielle (OAuth).

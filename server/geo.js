@@ -149,5 +149,3 @@ export function detectCity(text) {
 export function getCountry(code) {
   return COUNTRIES[code] || null;
 }
-
-export const COUNTRY_COUNT = Object.keys(COUNTRIES).length;

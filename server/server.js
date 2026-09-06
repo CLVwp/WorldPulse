@@ -2,7 +2,7 @@
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { refreshAll, subscribe, getRecentItems, getStats, dedupeSimilar } from "./aggregator.js";
+import { refreshAll, subscribe, getRecentItems, getStats } from "./aggregator.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -19,8 +19,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.get("/api/events", (req, res) => {
-  const since = req.query.since ? Number(req.query.since) : null;
-  const items = getRecentItems({ since, limit: 300 });
+  const items = getRecentItems({ limit: 300 });
   res.json({ events: items, ...getStats() });
 });
 
@@ -37,7 +36,6 @@ app.post("/api/refresh", async (_req, res) => {
   lastManualRefresh = now;
   try {
     const stats = await refreshAll();
-    dedupeSimilar();
     res.json({ ...stats, throttled: false });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -72,13 +70,12 @@ app.get("/api/stream", (req, res) => {
   console.log("→ Premier fetch des sources…");
   try {
     const s = await refreshAll();
-    dedupeSimilar();
     console.log(`✓ ${s.ok} sources OK, ${s.failed} en échec`);
   } catch (e) {
     console.warn("⚠ Premier fetch échoué :", e.message);
   }
   setInterval(() => {
-    refreshAll().then(dedupeSimilar).catch(() => {});
+    refreshAll().catch(() => {});
   }, REFRESH_INTERVAL_MS);
 })();
 

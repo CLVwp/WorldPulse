@@ -1,8 +1,9 @@
 // Parseur RSS minimal avec fast-xml-parser.
+import { createHash } from "node:crypto";
 import { XMLParser } from "fast-xml-parser";
 
-// processEntities: false → contourne la limite anti-XXE (les flux des grands médias
-// contiennent souvent > 1000 entités). On décode manuellement les entités courantes.
+// ponytail: processEntities:false + mini-décodeur — fast-xml-parser plante (>1000
+// entités) sur les gros flux type Guardian même pour les entités HTML standard.
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
@@ -10,22 +11,9 @@ const parser = new XMLParser({
   processEntities: false,
 });
 
-const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", eacute: "é", egrave: "è", ecirc: "ê", agrave: "à", ccedil: "ç", ugrave: "ù", ocirc: "ô", icirc: "î", acirc: "â", ucirc: "û", laquo: "«", raquo: "»", rsquo: "’", lsquo: "‘", ldquo: "“", rdquo: "”", mdash: "—", ndash: "–", hellip: "…" };
-
-function decodeEntities(s) {
-  return String(s).replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (m, code) => {
-    if (code[0] === "#") {
-      const num = code[1] === "x" || code[1] === "X" ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
-      return Number.isFinite(num) ? String.fromCodePoint(num) : m;
-    }
-    return ENTITIES[code] ?? m;
-  });
-}
-
-function pickTitle(item, lang) {
-  if (lang === "fr") return item["title"] ?? item["fr:title"] ?? null;
-  return item.title ?? null;
-}
+const decodeEntities = (s) => String(s)
+  .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(n))
+  .replace(/&(amp|lt|gt|quot|apos|nbsp|#x[0-9a-fA-F]+);/g, " ");
 
 export function parseRss(xmlText, sourceMeta) {
   const doc = parser.parse(xmlText);
@@ -37,7 +25,7 @@ export function parseRss(xmlText, sourceMeta) {
 
   const out = [];
   for (const item of items) {
-    const title = pickTitle(item, sourceMeta.lang);
+    const title = item.title ?? null;
     if (!title) continue;
 
     const link = item.link?.["@_href"] ?? (typeof item.link === "string" ? item.link : item.link ?? null);
@@ -55,7 +43,7 @@ export function parseRss(xmlText, sourceMeta) {
       sourceType: "rss",
       lang: sourceMeta.lang,
       publishedAt: pubRaw ? new Date(pubRaw).toISOString() : null,
-      description: description ? stripHtml(decodeEntities(description)).slice(0, 300) : null,
+      description: description ? decodeEntities(stripHtml(description)).slice(0, 300) : null,
     });
   }
   return out;
@@ -66,7 +54,5 @@ function stripHtml(s) {
 }
 
 function hashString(str) {
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
-  return h.toString(36);
+  return createHash("md5").update(str).digest("hex").slice(0, 8);
 }
