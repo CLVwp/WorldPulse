@@ -1,6 +1,6 @@
 # WorldPulse 🌍
 
-MVP d'une webapp de visualisation de l'actualité mondiale : une carte du monde dark mode où chaque événement géolocalisé apparaît comme une pulsation animée par pays, agrégée depuis les **flux RSS de presse** (BBC, France 24, Le Monde, Al Jazeera, DW, The Guardian, Euronews, NPR). Temps réel via **SSE**.
+MVP d'une webapp de visualisation de l'actualité mondiale : une carte du monde dark mode où chaque événement géolocalisé apparaît comme une pulsation animée par pays, agrégée depuis **16 sources de presse** (BBC, Al Jazeera, France 24, Le Monde, NPR, DW, Euronews, The Guardian, Reuters, Bloomberg, CNBC, Yahoo News, Le Figaro, LA Times, SCMP, Times of India). Temps réel via **SSE**.
 
 ## Stack
 
@@ -29,8 +29,9 @@ npm run dev
 2. Chaque titre est passé dans un détecteur de pays par mots-clés (`server/geo.js` — ~70 pays + ~90 villes, FR + EN).
 3. Les items géolocalisés sont dédupliqués, dotés d'un **niveau d'intensité** (1 faible / 2 moyen / 3 fort selon mots de gravité) et stockés en mémoire (6 h de rétention, max 400).
 4. Les nouveaux events sont diffusés en **SSE** → pulsations animées sur la carte + flux latéral (du plus récent en haut).
-5. Clic sur une pulsation ou une ligne du flux → détail + zoom + lien vers l'article.
-6. Bouton **SCAN** dans la barre supérieure : relance manuelle d'un scan (throttle 30 s, retour visuel sur le bouton).
+5. **Regroupement** : les articles partageant la même zone (pays ou ville) forment un seul marqueur avec un badge compteur ; le bloc détail propose une navigation ‹ › du + récent au + ancien.
+6. **Filtre de sources** : un select dans le panneau FLUX filtre flux et carte sur une rédaction.
+7. Bouton **SCAN** dans la barre supérieure : relance manuelle d'un scan (throttle 30 s, retour visuel sur le bouton). Légende d'intensité repliable en bas à gauche.
 
 ### Positionnement en deux niveaux
 

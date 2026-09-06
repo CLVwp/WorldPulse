@@ -47,12 +47,14 @@
     <aside id="feed">
       <div class="feed-head">
         <h2>FLUX</h2>
-        <span class="feed-hint">cliquer pour zoomer</span>
+        <select id="source-filter" title="Filtrer par source">
+          <option value="all">Toutes les sources</option>
+        </select>
       </div>
       <ul id="feed-list"></ul>
     </aside>
 
-    <!-- Popup détail d'un event -->
+    <!-- Popup détail d'un event (avec navigation multi-articles) -->
     <div id="detail" class="hidden">
       <button id="detail-close" aria-label="Fermer">×</button>
       <div class="detail-meta">
@@ -62,16 +64,23 @@
       <h3 id="detail-title"></h3>
       <p id="detail-desc"></p>
       <a id="detail-link" href="#" target="_blank" rel="noopener">Lire l'article →</a>
+      <div id="detail-nav">
+        <button id="detail-prev" title="Article plus ancien">‹</button>
+        <span id="detail-pos">1 / 3</span>
+        <button id="detail-next" title="Article plus récent">›</button>
+      </div>
     </div>
 
-    <!-- Légende intensité -->
+    <!-- Légende intensité (repliable) -->
     <div id="legend">
-      <span class="legend-title">INTENSITÉ</span>
-      <div class="legend-scale">
-        <span class="lv lv1"></span><span class="lv lv2"></span><span class="lv lv3"></span>
-      </div>
-      <div class="legend-labels">
-        <span>faible</span><span>moyen</span><span>fort</span>
+      <button id="legend-toggle" title="Afficher/masquer la légende">INTENSITÉ ▾</button>
+      <div id="legend-body">
+        <div class="legend-scale">
+          <span class="lv lv1"></span><span class="lv lv2"></span><span class="lv lv3"></span>
+        </div>
+        <div class="legend-labels">
+          <span>faible</span><span>moyen</span><span>fort</span>
+        </div>
       </div>
     </div>
   </main>
