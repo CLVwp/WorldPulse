@@ -184,33 +184,6 @@ main { position: relative; z-index: 1; width: 100%; height: 100%; }
 }
 #detail-nav.hidden { display: none; }
 
-/* --- Légende ----#37f0c2; }        /* vert/cyan : faible */
-.lv2 { background: var(--accent-warn); }  /* orange : moyen */
-.lv3 { background: var(--accent-hot); }   /* rouge : fort */
-
-/* --- Légende (repliable) ------------------------------------------------------ */
-#legend {
-  position: absolute; bottom: 20px; left: 20px; z-index: 9;
-  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-  padding: 8px 12px; font-family: var(--font-mono); font-size: 10px;
-  transition: opacity 0.3s;
-}
-#legend.shifted { opacity: 0; pointer-events: none; }
-#legend-toggle {
-  background: none; border: none; color: var(--text-dim);
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px;
-  cursor: pointer; padding: 2px 0;
-}
-#legend-toggle:hover { color: var(--text); }
-#legend.collapsed #legend-body { display: none; }
-#legend-body { margin-top: 8px; }
-.legend-scale { display: flex; gap: 4px; }
-.lv { width: 34px; height: 6px; border-radius: 2px; }
-.lv1 { background: #37f0c2; }
-.lv2 { background: var(--accent-warn); }
-.lv3 { background: var(--accent-hot); }
-.legend-labels { display: flex; gap: 26px; margin-top: 4px; color: var(--text-dim); }
-
 /* --- Marqueurs maplibre ------------------------------------------------------ */
 .event-marker { cursor: pointer; }
 .event-marker .ring {

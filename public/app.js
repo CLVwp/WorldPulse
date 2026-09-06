@@ -21,7 +21,6 @@ const $eventCount = document.getElementById("event-count");
 const $lastScan = document.getElementById("last-scan");
 const $feedList = document.getElementById("feed-list");
 const $detail = document.getElementById("detail");
-const $legend = document.getElementById("legend");
 const $sourceFilter = document.getElementById("source-filter");
 
 let eventsStore = new Map(); // id -> event (pour re-render au zoom)
@@ -149,7 +148,6 @@ function showDetail(ev, group = null) {
   }
 
   $detail.classList.remove("hidden");
-  $legend.classList.add("shifted");
 }
 
 // Le groupe est trié du + récent (idx 0) au + ancien (idx n-1) :
@@ -167,7 +165,6 @@ document.getElementById("detail-next").addEventListener("click", () => navigateD
 
 document.getElementById("detail-close").addEventListener("click", () => {
   $detail.classList.add("hidden");
-  $legend.classList.remove("shifted");
 });
 
 // --- Flux -----------------------------------------------------------------------
@@ -246,13 +243,6 @@ $sourceFilter.addEventListener("change", () => {
   activeSource = $sourceFilter.value;
   rebuildGroups();
   renderFeed();
-});
-
-// --- Légende repliable -----------------------------------------------------------------
-document.getElementById("legend-toggle").addEventListener("click", () => {
-  $legend.classList.toggle("collapsed");
-  document.getElementById("legend-toggle").textContent =
-    $legend.classList.contains("collapsed") ? "INTENSITÉ ▸" : "INTENSITÉ ▾";
 });
 
 function timeAgo(ts) {
