@@ -1,18 +1,18 @@
 {
   "name": "world-pulse",
   "version": "0.1.0",
-  "description": "MVP — Carte du monde des actualités : events géolocalisés depuis RSS et Reddit, temps réel via SSE.",
+  "description": "MVP — Carte du monde des actualités : events géolocalisés depuis RSS, temps réel via SSE.",
   "main": "server/server.js",
   "type": "module",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "node --watch server/server.js"
+    "start": "bun run server/server.js",
+    "dev": "bun --hot server/server.js"
   },
   "engines": {
-    "node": ">=18"
+    "bun": ">=1.4"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "fast-xml-parser": "^4.5.0"
+    "fast-xml-parser": "^4.5.0",
+    "hono": "^4.6.0"
   }
 }

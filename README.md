@@ -4,7 +4,7 @@ MVP d'une webapp de visualisation de l'actualité mondiale : une carte du monde 
 
 ## Stack
 
-- **Backend** : Node.js + Express (un seul langage, zéro base de données — état en mémoire)
+- **Backend** : **Bun** (≥1.4) + **Hono** (un seul langage, zéro base de données — état en mémoire)
 - **Front** : HTML/CSS/JS vanilla + **MapLibre GL** (tuiles Carto Dark, sans clé API)
 - **Temps réel** : Server-Sent Events
 - **Sources** : flux RSS publics (aucune clé API requise)
@@ -12,15 +12,15 @@ MVP d'une webapp de visualisation de l'actualité mondiale : une carte du monde 
 ## Lancer
 
 ```bash
-npm install
-npm start
+bun install
+bun start
 # → http://localhost:3000
 ```
 
-Mode dev avec rechargement auto du serveur :
+Mode dev avec rechargement à chaud du serveur :
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 ## Fonctionnement
@@ -51,7 +51,7 @@ Dézoomé, chaque event est placé sur le **centroïde du pays** (évite l'empil
 
 ```
 server/
-  server.js        # Express + SSE + bootstrap
+  server.js        # Hono (Bun) : API + SSE + statiques
   aggregator.js    # collecte, dédoublonnage, diffusion
   sources.js       # liste des flux RSS
   rssParser.js     # parseur RSS (fast-xml-parser)

@@ -11,9 +11,16 @@ const parser = new XMLParser({
   processEntities: false,
 });
 
+const ENT_MAP = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 const decodeEntities = (s) => String(s)
-  .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(n))
-  .replace(/&(amp|lt|gt|quot|apos|nbsp|#x[0-9a-fA-F]+);/g, " ");
+  .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+  .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+  .replace(/&([a-z]+);/gi, (m, name) => ENT_MAP[name.toLowerCase()] ?? m);
+
+// Certains flux (Google News, Times of India) embarquent du HTML échappé dans les
+// titres et descriptions : décoder d'abord (&lt;img...&gt; → <img...>), puis retirer
+// les balises. L'ordre inverse laisserait le contenu des balises dans le texte.
+const cleanText = (s) => stripHtml(decodeEntities(s));
 
 export function parseRss(xmlText, sourceMeta) {
   const doc = parser.parse(xmlText);
@@ -36,14 +43,14 @@ export function parseRss(xmlText, sourceMeta) {
 
     out.push({
       id: `${sourceMeta.id}:${hashString(link ?? title)}`,
-      title: decodeEntities(String(title).trim()),
+      title: cleanText(String(title)),
       url: link ?? null,
       source: sourceMeta.name,
       sourceId: sourceMeta.id,
       sourceType: "rss",
       lang: sourceMeta.lang,
       publishedAt: pubRaw ? new Date(pubRaw).toISOString() : null,
-      description: description ? decodeEntities(stripHtml(description)).slice(0, 300) : null,
+      description: description ? cleanText(description).slice(0, 300) : null,
     });
   }
   return out;
