@@ -90,48 +90,58 @@ document.getElementById("detail-close").addEventListener("click", () => {
 });
 
 // --- Flux -----------------------------------------------------------------------
-function renderFeedItem(ev, isNew) {
-  const li = document.createElement("li");
-  li.className = "feed-item" + (isNew ? " newest" : "");
-  li.dataset.id = ev.id;
-  li.dataset.ts = ev.timestamp;
-  li.innerHTML = `
-    <div class="feed-item-meta">
-      <span class="feed-country">${escapeHtml(ev.countryName)}</span>
-      <span class="feed-source">${escapeHtml(ev.source)}</span>
-      <span class="feed-time">${timeAgo(ev.timestamp)}</span>
-    </div>
-    <div class="feed-item-title">${escapeHtml(ev.title)}</div>
-  `;
-  li.addEventListener("click", () => {
-    map.flyTo({ center: positionFor(ev), zoom: Math.max(map.getZoom(), 4), duration: 1200 });
-    showDetail(ev);
-  });
-  $feedList.prepend(li); // prepend = le + récent toujours en haut
-  trimFeed();
+// Le flux est TOUJOURS trié globalement par timestamp (le + récent en haut),
+// quelle que soit la source ou l'ordre d'arrivée des lots SSE.
+const recentIds = new Set(); // items récemment arrivés → surlignage temporaire
+let recentTimer = null;
+
+function renderFeed() {
+  const sorted = [...eventsStore.values()]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 60);
+
+  $feedList.innerHTML = "";
+  for (const ev of sorted) {
+    const li = document.createElement("li");
+    li.className = "feed-item" + (recentIds.has(ev.id) ? " newest" : "");
+    li.innerHTML = `
+      <div class="feed-item-meta">
+        <span class="feed-country">${escapeHtml(ev.countryName)}</span>
+        <span class="feed-source">${escapeHtml(ev.source)}</span>
+        <span class="feed-time">${timeAgo(ev.timestamp)}</span>
+      </div>
+      <div class="feed-item-title">${escapeHtml(ev.title)}</div>
+    `;
+    li.addEventListener("click", () => {
+      map.flyTo({ center: positionFor(ev), zoom: Math.max(map.getZoom(), 4), duration: 1200 });
+      showDetail(ev);
+    });
+    $feedList.appendChild(li);
+  }
 }
 
-function trimFeed() {
-  while ($feedList.children.length > 60) $feedList.lastChild.remove();
+function markRecent(ids) {
+  for (const id of ids) recentIds.add(id);
+  clearTimeout(recentTimer);
+  recentTimer = setTimeout(() => {
+    recentIds.clear();
+    $feedList.querySelectorAll(".newest").forEach((el) => el.classList.remove("newest"));
+  }, 20_000);
 }
 
 function handleEvents(events, { animate = true } = {}) {
-  // Tri antichronologique pour la carte ; insertion ascendante pour le flux
-  // (prepend place le dernier inséré en haut → il faut finir par le plus récent).
-  const sorted = [...events].sort((a, b) => b.timestamp - a.timestamp);
-  let added = 0;
-  const newOnes = [];
-  for (const ev of sorted) {
-    const isNew = !eventsStore.has(ev.id);
-    eventsStore.set(ev.id, ev);
+  const newIds = [];
+  for (const ev of events) {
+    if (!eventsStore.has(ev.id)) {
+      eventsStore.set(ev.id, ev);
+      if (animate) newIds.push(ev.id);
+    } else {
+      eventsStore.set(ev.id, ev);
+    }
     addEventToMap(ev);
-    if (isNew) newOnes.push(ev);
   }
-  // Prepend du plus ancien au plus récent → le + récent finit en haut du flux.
-  for (const ev of newOnes.reverse()) {
-    renderFeedItem(ev, animate && added < 5);
-    added++;
-  }
+  if (newIds.length) markRecent(newIds);
+  renderFeed();
   $eventCount.textContent = eventsStore.size;
 }
 
