@@ -13,6 +13,11 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom
 map.dragPan.enable();
 
 let activeSource = "all";   // filtre du flux ET de la carte
+let activeView = "news";    // vue courante : news | flights | satellites | conflicts | earthquakes
+
+// --- Données OSIRIS (vols, sats, conflits, séismes) ---------------------------
+const osirisStore = new Map(); // id -> item normalisé
+const osirisGroups = new Map(); // posKey -> { marker, el, items: [] } (marqueurs dédiés, hors groupes news)
 
 // --- Éléments ---------------------------------------------------------------
 const $statusConn = document.getElementById("status-conn");
@@ -40,6 +45,90 @@ function isEventVisible(ev) {
   return activeSource === "all" || ev.sourceId === activeSource;
 }
 
+// --- Vues OSIRIS --------------------------------------------------------------
+const OSIRIS_FEEDS = {
+  flight: { label: "Vols", color: "#4fc3f7" },
+  satellite: { label: "Satellites", color: "#ffd54f" },
+  conflict: { label: "Conflits", color: "#ff5470" },
+  earthquake: { label: "Séismes", color: "#ff8a65" },
+};
+
+function osirisVisible(item) {
+  return item.kind === activeView;
+}
+
+function rebuildOsirisMarkers() {
+  const byKey = new Map();
+  for (const item of osirisStore.values()) {
+    if (!osirisVisible(item)) continue;
+    const key = `${item.lat.toFixed(2)},${item.lng.toFixed(2)}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(item);
+  }
+
+  for (const [key, g] of osirisGroups) {
+    if (!byKey.has(key)) {
+      g.marker.remove();
+      osirisGroups.delete(key);
+    }
+  }
+
+  for (const [key, items] of byKey) {
+    const top = items[0];
+    let g = osirisGroups.get(key);
+    if (!g) {
+      const el = document.createElement("div");
+      el.className = `osiris-marker kind-${top.kind}`;
+      el.innerHTML = `<div class="core"></div>`;
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([top.lng, top.lat])
+        .addTo(map);
+      g = { marker, el, items, idx: 0 };
+      el.addEventListener("click", () => showOsirisDetail(items[0]));
+      osirisGroups.set(key, g);
+    }
+    g.items = items;
+    g.marker.setLngLat([top.lng, top.lat]);
+  }
+}
+
+function showOsirisDetail(item) {
+  const feed = OSIRIS_FEEDS[item.kind];
+  document.getElementById("detail-country").textContent = feed?.label ?? item.kind;
+  document.getElementById("detail-source").textContent = `OSIRIS · ${timeAgo(item.ts)}`;
+  document.getElementById("detail-title").textContent = item.title;
+  document.getElementById("detail-desc").textContent = item.sub ?? "";
+  const link = document.getElementById("detail-link");
+  if (item.url) { link.href = item.url; link.style.display = "inline"; }
+  else link.style.display = "none";
+  document.getElementById("detail-nav").classList.add("hidden");
+  $detail.classList.remove("hidden");
+}
+
+// --- Switch de vue ------------------------------------------------------------
+function setView(view) {
+  if (view === activeView) return;
+  activeView = view;
+  document.querySelectorAll(".view-tab").forEach((b) =>
+    b.classList.toggle("active", b.dataset.view === view)
+  );
+  // Masque/affiche les marqueurs news et osiris selon la vue
+  if (view === "news") {
+    for (const g of groups.values()) g.marker.addTo(map);
+    for (const g of osirisGroups.values()) g.marker.remove();
+    rebuildGroups();
+  } else {
+    for (const g of groups.values()) g.marker.remove();
+    for (const g of osirisGroups.values()) g.marker.remove();
+    rebuildOsirisMarkers();
+  }
+  renderFeed();
+}
+
+document.querySelectorAll(".view-tab").forEach((btn) =>
+  btn.addEventListener("click", () => setView(btn.dataset.view))
+);
+
 // --- Marqueurs (groupés par position) ---------------------------------------------
 // Tous les events partageant la même clé de position forment un groupe :
 // un seul marqueur, avec navigation ‹ › du + récent au + ancien.
@@ -58,6 +147,13 @@ function posKeyFor(ev) {
 }
 
 function rebuildGroups() {
+  // Garde-fou vue : le zoom et les SSE news rappellent cette fn même quand une
+  // vue OSIRIS est active — sans ce test, les marqueurs news (et leurs badges
+  // compteurs) réapparaîtraient par-dessus les marqueurs vols/sats/conflits/séismes.
+  if (activeView !== "news") {
+    for (const g of groups.values()) g.marker.remove();
+    return;
+  }
   const byKey = new Map();
   for (const ev of eventsStore.values()) {
     if (!isEventVisible(ev)) continue;
@@ -175,20 +271,39 @@ let recentTimer = null;
 let lastFeedSignature = null; // évite de recréer le DOM (et relancer les animations CSS) sans changement
 
 function renderFeed() {
-  const sorted = [...eventsStore.values()]
-    .filter(isEventVisible)
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 60);
-
-  const signature = sorted.map((e) => e.id).join(",");
+  let sorted, signature;
+  if (activeView === "news") {
+    sorted = [...eventsStore.values()]
+      .filter(isEventVisible)
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 60);
+    signature = "news:" + sorted.map((e) => e.id).join(",");
+  } else {
+    sorted = [...osirisStore.values()]
+      .filter(osirisVisible)
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, 60);
+    signature = activeView + ":" + sorted.map((e) => e.id).join(",");
+  }
   if (signature === lastFeedSignature) return;
   lastFeedSignature = signature;
 
   $feedList.innerHTML = "";
   for (const ev of sorted) {
     const li = document.createElement("li");
-    li.className = "feed-item" + (recentIds.has(ev.id) ? " newest" : "");
-    li.innerHTML = `
+    const isOsiris = activeView !== "news";
+    li.className = "feed-item" + (isOsiris ? " osiris" : "") + (!isOsiris && recentIds.has(ev.id) ? " newest" : "");
+    li.innerHTML = isOsiris
+      ? `
+      <div class="feed-item-meta">
+        <span class="feed-country" style="color:${OSIRIS_FEEDS[ev.kind]?.color}">${OSIRIS_FEEDS[ev.kind]?.label ?? ev.kind}</span>
+        <span class="feed-source">OSIRIS</span>
+        <span class="feed-time">${timeAgo(ev.ts)}</span>
+      </div>
+      <div class="feed-item-title">${escapeHtml(ev.title)}</div>
+      <div class="feed-item-sub">${escapeHtml(ev.sub ?? "")}</div>
+    `
+      : `
       <div class="feed-item-meta">
         <span class="feed-country">${escapeHtml(ev.countryName)}</span>
         <span class="feed-source">${escapeHtml(ev.source)}</span>
@@ -197,8 +312,13 @@ function renderFeed() {
       <div class="feed-item-title">${escapeHtml(ev.title)}</div>
     `;
     li.addEventListener("click", () => {
-      map.flyTo({ center: positionFor(ev), zoom: Math.max(map.getZoom(), 4), duration: 1200 });
-      showDetail(ev);
+      if (isOsiris) {
+        map.flyTo({ center: [ev.lng, ev.lat], zoom: Math.max(map.getZoom(), 4), duration: 1200 });
+        showOsirisDetail(ev);
+      } else {
+        map.flyTo({ center: positionFor(ev), zoom: Math.max(map.getZoom(), 4), duration: 1200 });
+        showDetail(ev);
+      }
     });
     $feedList.appendChild(li);
   }
@@ -329,6 +449,16 @@ function connectStream() {
       }
     } catch { /* payload corrompu */ }
   });
+  es.addEventListener("osiris", (e) => {
+    try {
+      const { feed, items } = JSON.parse(e.data);
+      for (const item of items) osirisStore.set(item.id, item);
+      if (activeView === feed) {
+        rebuildOsirisMarkers();
+        renderFeed();
+      }
+    } catch { /* payload corrompu */ }
+  });
   es.onerror = () => {
     $statusConn.textContent = "reconnexion…";
     $pulseRing.classList.remove("on");
@@ -352,6 +482,19 @@ async function loadInitial() {
     $statusConn.textContent = "initialisation…";
     setTimeout(loadInitial, 5000); // retry : le serveur scanne peut-être encore
   }
+
+  // Chargement initial OSIRIS (snapshot REST, ensuite tout arrive via SSE)
+  try {
+    const res = await fetch("/api/osiris");
+    if (res.ok) {
+      const data = await res.json();
+      for (const item of data.items ?? []) osirisStore.set(item.id, item);
+      if (activeView !== "news") {
+        rebuildOsirisMarkers();
+        renderFeed();
+      }
+    }
+  } catch { /* osiris indisponible : la vue news reste fonctionnelle */ }
 }
 
 setInterval(() => {

@@ -2,6 +2,7 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { refreshAll, subscribe, getRecentItems, getStats } from "./aggregator.js";
+import { refreshOsiris, getOsirisItems, getOsirisStats, onOsirisUpdate } from "./osiris.js";
 
 const app = new Hono();
 const PORT = process.env.PORT || 3000;
@@ -17,6 +18,19 @@ app.get("/api/health", (c) => c.json({ ok: true, ...getStats() }));
 app.get("/api/events", (c) =>
   c.json({ events: getRecentItems({ limit: 300 }), ...getStats() })
 );
+
+// --- OSIRIS (vols, satellites, conflits, séismes) ---------------------------
+app.get("/api/osiris", (c) =>
+  c.json({ items: getOsirisItems(), feeds: getOsirisStats() })
+);
+
+app.post("/api/osiris/refresh", async (c) => {
+  try {
+    return c.json(await refreshOsiris({ force: true }));
+  } catch (e) {
+    return c.json({ error: e.message }, 500);
+  }
+});
 
 // Force un refresh manuel (throttle 30s pour protéger les sources).
 app.post("/api/refresh", async (c) => {
@@ -38,7 +52,7 @@ app.post("/api/refresh", async (c) => {
 
 // --- SSE ------------------------------------------------------------------
 app.get("/api/stream", (c) => {
-  let unsubscribe, heartbeat;
+  let unsubscribe, unsubscribeOsiris, heartbeat;
   const stream = new ReadableStream({
     start(controller) {
       const enc = new TextEncoder();
@@ -48,6 +62,9 @@ app.get("/api/stream", (c) => {
       unsubscribe = subscribe((payload) =>
         send(`event: events\ndata: ${payload}\n\n`)
       );
+      unsubscribeOsiris = onOsirisUpdate((payload) =>
+        send(`event: osiris\ndata: ${payload}\n\n`)
+      );
       // ponytail: Bun coupe les streams inactifs (~8s) → ping serré ; passer à un
       // vrai keep-alive serveur si ça devient un problème de trafic.
       heartbeat = setInterval(() => send(`: ping\n\n`), 5_000);
@@ -55,6 +72,7 @@ app.get("/api/stream", (c) => {
     cancel() {
       clearInterval(heartbeat);
       unsubscribe?.();
+      unsubscribeOsiris?.();
     },
   });
   return new Response(stream, {
@@ -78,6 +96,19 @@ try {
 setInterval(() => {
   refreshAll().catch(() => {});
 }, REFRESH_INTERVAL_MS);
+
+// Osiris : refresh léger toutes les 60s (les TTL par feed évitent de re-poller
+// un endpoint dont le cache n'a pas expiré).
+console.log("→ Premier fetch OSIRIS…");
+try {
+  const o = await refreshOsiris({ force: true });
+  console.log(`✓ OSIRIS : ${o.ok} feeds OK, ${o.failed} en échec`);
+} catch (e) {
+  console.warn("⚠ Fetch OSIRIS échoué :", e.message);
+}
+setInterval(() => {
+  refreshOsiris().catch(() => {});
+}, 60_000);
 
 export default {
   port: PORT,
