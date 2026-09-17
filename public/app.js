@@ -89,6 +89,9 @@ function rebuildOsirisMarkers() {
     }
     g.items = items;
     g.marker.setLngLat([top.lng, top.lat]);
+    // setLngLat ne rattache pas un marqueur retiré via remove() — addTo est
+    // idempotent, on le rappelle systématiquement (retour de vue NEWS → OSIRIS).
+    g.marker.addTo(map);
   }
 }
 
