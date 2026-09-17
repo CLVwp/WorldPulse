@@ -172,12 +172,17 @@ document.getElementById("detail-close").addEventListener("click", () => {
 // quelle que soit la source ou l'ordre d'arrivée des lots SSE.
 const recentIds = new Set(); // items récemment arrivés → surlignage temporaire
 let recentTimer = null;
+let lastFeedSignature = null; // évite de recréer le DOM (et relancer les animations CSS) sans changement
 
 function renderFeed() {
   const sorted = [...eventsStore.values()]
     .filter(isEventVisible)
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 60);
+
+  const signature = sorted.map((e) => e.id).join(",");
+  if (signature === lastFeedSignature) return;
+  lastFeedSignature = signature;
 
   $feedList.innerHTML = "";
   for (const ev of sorted) {
