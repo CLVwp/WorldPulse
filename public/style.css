@@ -3,7 +3,7 @@
 :root {
   --bg: #06090f;
   --bg-2: #0a1018;
-  --panel: rgba(12, 18, 28, 0.88);
+  --panel: rgba(12, 18, 28, 0.96);
   --border: rgba(120, 160, 200, 0.14);
   --border-strong: rgba(120, 180, 255, 0.35);
   --text: #dce8f5;
@@ -43,9 +43,8 @@ html, body {
   position: fixed; top: 0; left: 0; right: 0; z-index: 20;
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 22px;
-  background: linear-gradient(180deg, rgba(6,9,15,0.95), rgba(6,9,15,0.75) 80%, transparent);
+  background: linear-gradient(180deg, rgba(6,9,15,0.98), rgba(6,9,15,0.85) 80%, transparent);
   border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(6px);
 }
 .brand { display: flex; align-items: baseline; gap: 10px; }
 .brand h1 {
@@ -94,14 +93,15 @@ main { position: relative; z-index: 1; width: 100%; height: 100%; }
 #map {
   position: absolute; inset: 0;
 }
-/* Assombrit légèrement les tuiles déjà sombres */
-#map .maplibregl-canvas { filter: saturate(0.7) brightness(0.9); }
+/* Assombrit légèrement les tuiles déjà sombres.
+   NB : pas de `filter` sur le canvas maplibre — Firefox recompose le filtre à
+   chaque frame pendant pan/zoom → lag visible (Chrome le tolère). */
 
 /* --- Flux latéral ---------------------------------------------------------- */
 #feed {
   position: absolute; top: 74px; right: 20px; bottom: 20px; width: 330px; z-index: 10;
   background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-  backdrop-filter: blur(10px); display: flex; flex-direction: column;
+  display: flex; flex-direction: column;
   overflow: hidden;
 }
 .feed-head {
@@ -146,7 +146,7 @@ main { position: relative; z-index: 1; width: 100%; height: 100%; }
   position: absolute; bottom: 20px; left: 20px; z-index: 11;
   width: min(420px, calc(100vw - 400px));
   background: var(--panel); border: 1px solid var(--border-strong); border-radius: 10px;
-  padding: 20px 22px; backdrop-filter: blur(10px);
+  padding: 20px 22px;
   transition: opacity 0.2s, transform 0.2s;
 }
 #detail.hidden { opacity: 0; transform: translateY(12px); pointer-events: none; }
@@ -188,13 +188,17 @@ main { position: relative; z-index: 1; width: 100%; height: 100%; }
 .event-marker { cursor: pointer; }
 .event-marker .ring {
   position: absolute; left: 50%; top: 50%;
-  border-radius: 50%; transform: translate(-50%, -50%);
+  width: 44px; height: 44px; border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0.23);
   border: 1.5px solid currentColor;
   animation: marker-ring 2.6s infinite;
 }
+/* Transform-only : animer width/height déclenche du layout à chaque frame.
+   NB : PAS de will-change ici — avec ~100 marqueurs, Firefox crée une couche
+   GPU par élément et la compositing explose. */
 @keyframes marker-ring {
-  0% { width: 10px; height: 10px; opacity: 0.85; }
-  100% { width: 44px; height: 44px; opacity: 0; }
+  0% { transform: translate(-50%, -50%) scale(0.23); opacity: 0.85; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
 }
 .event-marker .core {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
