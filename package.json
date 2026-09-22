@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "start": "bun run server/server.js",
-    "dev": "bun --hot server/server.js"
+    "dev": "bun --hot server/server.js",
+    "preview": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "kv:create": "wrangler kv namespace create CACHE"
   },
   "engines": {
     "bun": ">=1.4"
@@ -14,5 +17,8 @@
   "dependencies": {
     "fast-xml-parser": "^5.7.0",
     "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.136.3"
   }
 }

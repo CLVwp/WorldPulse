@@ -142,10 +142,13 @@ const NORMALIZERS = {
   },
 };
 
-export async function refreshOsiris({ force = false } = {}) {
+// feedState : état persisté (déploiement Workers) { feedId: { items, fetchedAt } }
+// pour respecter les TTL et conserver les items des feeds non re-pollés.
+export async function refreshOsiris({ force = false, feedState = {} } = {}) {
   const now = Date.now();
   const results = await Promise.all(FEEDS.map(async (feed) => {
-    const st = state.get(feed.id) ?? { items: [], fetchedAt: 0 };
+    const saved = feedState[feed.id];
+    const st = state.get(feed.id) ?? { items: saved?.items ?? [], fetchedAt: saved?.fetchedAt ?? 0 };
     if (!force && now - st.fetchedAt < feed.ttl) return { feed, items: st.items, fresh: false, error: null };
     try {
       const data = await getJson(feed.url);
@@ -153,9 +156,9 @@ export async function refreshOsiris({ force = false } = {}) {
       st.items = items;
       st.fetchedAt = now;
       state.set(feed.id, st);
-      return { feed, items, fresh: true, error: null };
+      return { feed, items, fresh: true, error: null, fetchedAt: st.fetchedAt };
     } catch (err) {
-      return { feed, items: st.items, fresh: false, error: err.message };
+      return { feed, items: st.items, fresh: false, error: err.message, fetchedAt: st.fetchedAt };
     }
   }));
 
@@ -166,7 +169,7 @@ export async function refreshOsiris({ force = false } = {}) {
   return {
     ok: results.filter((r) => !r.error).length,
     failed: results.filter((r) => r.error).length,
-    feeds: results.map((r) => ({ id: r.feed.id, ok: !r.error, items: r.items.length, fresh: r.fresh, error: r.error })),
+    feeds: results.map((r) => ({ id: r.feed.id, ok: !r.error, items: r.items.length, fresh: r.fresh, error: r.error, fetchedAt: r.fetchedAt })),
   };
 }
 

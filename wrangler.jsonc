@@ -1,0 +1,21 @@
+{
+  // Déploiement Cloudflare : 1 Worker = front statique (assets) + API + Cron.
+  // 1. bun run kv:create  →  2. coller l'id ci-dessous  →  3. bun run deploy
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "world-pulse",
+  "main": "server/worker.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./public"
+  },
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "REMPLACE_MOI_AVEC_L_ID_DU_NAMESPACE"
+    }
+  ]
+}

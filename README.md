@@ -28,6 +28,29 @@ Mode dev avec rechargement à chaud du serveur :
 bun run dev
 ```
 
+## Déploiement Cloudflare (Workers + assets)
+
+Un seul Worker sert le front statique **et** l'API : état en **KV**, refresh piloté par un **Cron minute**, polling 45 s côté front à la place du SSE (impossible entre isolates Workers). Le dev Bun local garde le SSE tel quel.
+
+```bash
+bun run kv:create    # crée le namespace KV, copier l'id dans wrangler.jsonc
+bun run deploy       # wrangler deploy
+# → https://world-pulse.<ton-sous-domaine>.workers.dev
+```
+
+Test local du Worker (workerd + KV simulé) :
+
+```bash
+bun run preview      # wrangler dev
+```
+
+| | Dev (Bun) | Prod (Cloudflare) |
+|---|---|---|
+| Front + API | même process, un serveur | même Worker, assets statiques |
+| État | mémoire (6 h) | KV (`snapshot`, reécrit à chaque cron) |
+| Refresh | `setInterval` 90 s / 60 s | Cron minute + TTL respectés |
+| Temps réel | SSE | polling 45 s (`/api/stream` renvoie 204) |
+
 ## Fonctionnement
 
 ### News (RSS)
@@ -64,13 +87,15 @@ Dézoomé, chaque event est placé sur le **centroïde du pays** (évite l'empil
 
 ```
 server/
-  server.js        # Hono (Bun) : API + SSE + statiques
+  server.js        # Hono (Bun) : API + SSE + statiques (dev local)
+  worker.js        # entrée Cloudflare Workers : API + KV + Cron
   aggregator.js    # collecte news, dédoublonnage, diffusion
   osiris.js        # connecteur OSIRIS : vols, sats, conflits, séismes
   sources.js       # liste des flux RSS
   rssParser.js     # parseur RSS (fast-xml-parser)
   fetchClient.js   # fetch avec timeout + retries
   geo.js           # détection pays par mots-clés
+wrangler.jsonc      # config Cloudflare (assets, KV, cron)
 public/
   index.html       # structure de la page (+ onglets de vues)
   style.css        # thème dark tech
@@ -86,13 +111,14 @@ public/
 | `POST /api/osiris/refresh` | Force un refresh OSIRIS (bypass TTL) |
 | `POST /api/refresh` | Force un scan RSS (throttle 30 s) |
 | `GET /api/health` | Liveness + stats |
-| `GET /api/stream` | Stream SSE (events `hello`, `events`, `osiris`) |
+| `GET /api/stream` | Stream SSE (events `hello`, `events`, `osiris`) — dev Bun uniquement |
 
 ## Limites connues du MVP
 
 - La détection pays est **heuristique** (mots-clés) : elle génère du bruit (ex. "Paris 2024" → France) et des manques. Une étape NLP (geotagging) est la suite naturelle.
 - Twitter/X est **payant** (API ~100 $/mois) et Reddit **bloque les clients serveur** → tous deux volontairement exclus du MVP ; connecteurs optionnels prévus.
 - Un seul process, état en mémoire : pour scaler, ajouter Redis + plusieurs workers.
+- Sur Cloudflare, les quotas KV (lectures 100 k/jour en gratuit) sont absorbés par un `Cache-Control: max-age=30` sur l'API ; le Cron gratuit est limité à ~10 ms CPU — si les 16 flux font déborder un scan, passer sur le plan payant (30 s).
 - Certains flux peuvent bloquer ou ralentir — le fetcher a timeout + retries et tolère les échecs par source.
 
 ## Pistes d'évolution

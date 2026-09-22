@@ -124,4 +124,10 @@ export async function refreshAll() {
   return lastFetchStats;
 }
 
+// Hydrate le store mémoire depuis un snapshot persisté (déploiement Workers).
+// Idempotent : pushItem dédoublonne par id et ré-enrichit à l'identique.
+export function hydrate(items) {
+  for (const it of items) pushItem(it);
+}
+
 // Dédup : l'ID (source:hash) suffit — pas de fuzzy matching.

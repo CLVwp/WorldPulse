@@ -500,6 +500,38 @@ async function loadInitial() {
   } catch { /* osiris indisponible : la vue news reste fonctionnelle */ }
 }
 
+// --- Polling 45s ---------------------------------------------------------------------
+// Sur Cloudflare (Workers, état en KV) le SSE n'existe pas : on re-poll les snapshots.
+// Idempotent (dédup par id), et inoffensif en dev Bun où le SSE pousse déjà.
+async function pollUpdates() {
+  try {
+    const [rEv, rOs] = await Promise.all([
+      fetch("/api/events?limit=300"),
+      fetch("/api/osiris"),
+    ]);
+    if (rEv.ok) {
+      const data = await rEv.json();
+      handleEvents(data.events, { animate: true });
+      if (data.lastFetchAt) $lastScan.dataset.ts = String(Date.parse(data.lastFetchAt));
+    }
+    if (rOs.ok) {
+      const data = await rOs.json();
+      for (const item of data.items ?? []) osirisStore.set(item.id, item);
+      if (activeView !== "news") {
+        rebuildOsirisMarkers();
+        renderFeed();
+      }
+    }
+    if (rEv.ok || rOs.ok) {
+      $statusConn.textContent = "en direct";
+      $pulseRing.classList.add("on");
+    }
+  } catch {
+    /* réseau : on retente au prochain tick */
+  }
+}
+setInterval(pollUpdates, 45_000);
+
 setInterval(() => {
   if ($lastScan.dataset.ts) $lastScan.textContent = timeAgo(Number($lastScan.dataset.ts));
 }, 30_000);
