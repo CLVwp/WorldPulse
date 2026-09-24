@@ -19,12 +19,13 @@ Navigation par **vues séparées** : onglets NEWS / VOLS / SATS / CONFLITS / SÉ
 
 ```bash
 bun install
-bun run dev        # front Next.js → http://localhost:3000
-bun run dev:api    # API Worker + KV local → http://localhost:8787
+bun run dev        # front Next.js → http://localhost:3000 (terminal 1)
+bun run dev:api    # API Worker + KV local → http://localhost:8787 (terminal 2)
 ```
 
-En dev, le front appelle l'API sur la même origine par défaut ; pour pointer
-sur le Worker local, définir `NEXT_PUBLIC_API_BASE=http://localhost:8787`.
+En dev, `next.config.ts` proxifie `/api/*` vers `:8787` (rewrite dev uniquement,
+surchargeable via `API_PROXY_TARGET`). En prod, l'API est servie sur la même
+origine par le Worker : aucun proxy, aucun CORS à configurer.
 
 ## Déploiement Cloudflare (1 Worker : assets + API + cron)
 

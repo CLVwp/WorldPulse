@@ -10,7 +10,7 @@ import type {
   PulseEvent,
 } from "@/lib/types";
 
-const API = process.env.NEXT_PUBLIC_API_BASE ?? "";
+const API = process.env["NEXT_PUBLIC_API_BASE"] ?? "";
 const POLL_MS = 45_000;
 
 export type PulseStatus = "init" | "live" | "offline";

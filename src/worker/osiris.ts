@@ -55,11 +55,13 @@ interface RawQuake {
 }
 interface RawConflictEvent {
   id?: string | number;
-  title?: string;
+  // `| undefined` explicite : exactOptionalPropertyTypes interdit de passer
+  // undefined à une prop optionnelle sans l'écrire dans le type.
+  title?: string | undefined;
   lat?: number;
   lng?: number;
-  url?: string;
-  timestamp?: string;
+  url?: string | undefined;
+  timestamp?: string | undefined;
 }
 interface RawZone {
   id?: string | number;
@@ -170,8 +172,8 @@ const NORMALIZERS: Record<OsirisKind, (d: RawPayload) => OsirisItem[]> = {
   flight: (d) =>
     sampleGeo(
       [
-        ...((d.commercial_flights as RawFlight[] | undefined) ?? []),
-        ...((d.military_flights as RawFlight[] | undefined) ?? []),
+        ...((d["commercial_flights"] as RawFlight[] | undefined) ?? []),
+        ...((d["military_flights"] as RawFlight[] | undefined) ?? []),
       ].map(normFlight),
       MAX_FLIGHTS,
     ),
@@ -183,24 +185,24 @@ const NORMALIZERS: Record<OsirisKind, (d: RawPayload) => OsirisItem[]> = {
       "comms",
       "navigation",
     ]);
-    const sats = ((d.satellites as RawSat[] | undefined) ?? []).filter((s) =>
+    const sats = ((d["satellites"] as RawSat[] | undefined) ?? []).filter((s) =>
       keep.has(s.category ?? ""),
     );
     return sampleGeo(sats.map(normSat), MAX_SATS);
   },
   earthquake: (d) =>
-    ((d.earthquakes as RawQuake[] | undefined) ?? [])
+    ((d["earthquakes"] as RawQuake[] | undefined) ?? [])
       .filter((q) => num(q.magnitude) >= 4.5)
       .sort((a, b) => num(b.magnitude) - num(a.magnitude))
       .slice(0, MAX_QUAKES)
       .map(normQuake),
   conflict: (d) => {
-    const zones = (d.zones as RawZone[] | undefined) ?? [];
+    const zones = (d["zones"] as RawZone[] | undefined) ?? [];
     const events = zones.flatMap((z) =>
       (z.events ?? []).map((e) => normConflictEvent(e, z)),
     );
     // Zones sans events : la zone elle-même devient un point (ex. frontlines)
-    const withEvents = new Set(events.map((e) => str(e.meta?.zone)));
+    const withEvents = new Set(events.map((e) => str(e.meta?.["zone"])));
     const zonePoints = zones
       .filter((z) => !withEvents.has(str(z.id)))
       .map((z) =>

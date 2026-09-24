@@ -182,7 +182,10 @@ export default {
     ctx.waitUntil(
       refreshWorld(env)
         .then((r) => {
-          if ("snap" in r) return writeSnapshot(env, r.snap);
+          if ("snap" in r) {
+            return writeSnapshot(env, r.snap);
+          }
+          return;
         })
         .catch(() => {}),
     );

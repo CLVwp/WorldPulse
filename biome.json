@@ -7,7 +7,13 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!node_modules", "!.next", "!out", "!.wrangler"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/.next",
+      "!**/out",
+      "!**/.wrangler"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -35,10 +41,13 @@
       "style": {
         "noNonNullAssertion": "error",
         "useConst": "error",
-        "noParameterAssign": "error"
+        "noParameterAssign": "error",
+        "useImportType": "error",
+        "noCommonJs": "error"
       },
       "complexity": {
-        "noUselessFragments": "error"
+        "noUselessFragments": "error",
+        "useLiteralKeys": "off"
       }
     },
     "domains": {

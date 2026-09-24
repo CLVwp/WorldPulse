@@ -75,7 +75,7 @@ const asArray = <T>(v: T | T[] | undefined): T[] =>
   Array.isArray(v) ? v : v ? [v] : [];
 
 function linkOf(item: XmlNode): string | null {
-  const link = item.link;
+  const link = item["link"];
   if (link && typeof link === "object" && link !== null) {
     return str((link as XmlNode)["@_href"]);
   }
@@ -84,24 +84,24 @@ function linkOf(item: XmlNode): string | null {
 
 export function parseRss(xmlText: string, sourceMeta: SourceMeta): RssItem[] {
   const doc = parser.parse(xmlText) as XmlNode;
-  const channel = ((doc.rss as XmlNode | undefined)?.channel ??
-    (doc["rdf:RDF"] as XmlNode | undefined)?.channel ??
-    doc.feed) as XmlNode | undefined;
+  const channel = ((doc["rss"] as XmlNode | undefined)?.["channel"] ??
+    (doc["rdf:RDF"] as XmlNode | undefined)?.["channel"] ??
+    doc["feed"]) as XmlNode | undefined;
   if (!channel) return [];
 
   const out: RssItem[] = [];
   for (const item of asArray(
-    channel.item as XmlNode | XmlNode[] | undefined,
-  ).concat(asArray(channel.entry as XmlNode | XmlNode[] | undefined))) {
-    const title = str(item.title);
+    channel["item"] as XmlNode | XmlNode[] | undefined,
+  ).concat(asArray(channel["entry"] as XmlNode | XmlNode[] | undefined))) {
+    const title = str(item["title"]);
     if (!title) continue;
 
     const pubRaw =
-      str(item.pubDate) ??
-      str(item.published) ??
+      str(item["pubDate"]) ??
+      str(item["published"]) ??
       str(item["dc:date"]) ??
-      str(item.updated);
-    const description = str(item.description) ?? str(item.summary);
+      str(item["updated"]);
+    const description = str(item["description"]) ?? str(item["summary"]);
 
     out.push({
       id: `${sourceMeta.id}:${hashString(linkOf(item) ?? title)}`,
