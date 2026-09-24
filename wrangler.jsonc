@@ -1,16 +1,19 @@
+// Déploiement Cloudflare : 1 Worker = front statique (export Next.js dans out/)
+// + API Hono + Cron + KV.
+// 1. bun run kv:create  →  2. coller l'id ci-dessous  →  3. bun run deploy
 {
-  // Déploiement Cloudflare : 1 Worker = front statique (assets) + API + Cron.
-  // 1. bun run kv:create  →  2. coller l'id ci-dessous  →  3. bun run deploy
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "worldpulse",
-  "main": "server/worker.js",
+  "main": "src/worker/index.ts",
   "compatibility_date": "2026-09-01",
-  "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "./public"
+    "directory": "./out",
+    "not_found_handling": "404-page"
   },
   "triggers": {
-    "crons": ["* * * * *"]
+    // Budget free tier : le cron écrit 1 fois le snapshot KV à chaque passage.
+    // */10 → 144 écrits/jour ≈ 14 % du quota gratuit (1 000 écrits/jour).
+    "crons": ["*/10 * * * *"]
   },
   "kv_namespaces": [
     {

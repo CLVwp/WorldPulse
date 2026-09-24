@@ -1,134 +1,81 @@
 # WorldPulse 🌍
 
-MVP d'une **fonderie de données OSINT temps réel** : une carte du monde dark mode où chaque événement apparaît comme une pulsation animée. Deux familles de sources, un format d'event unifié :
+MVP d'une **fonderie de données OSINT** : une carte du monde (thème papier) où chaque événement apparaît comme une pulsation. Deux familles de sources, un format d'event unifié :
 
 - **NEWS** — 16 sources de presse géolocalisées (BBC, Al Jazeera, France 24, Le Monde, NPR, DW, Euronews, The Guardian, Reuters, Bloomberg, CNBC, Yahoo News, Le Figaro, LA Times, SCMP, Times of India)
-- **OSIRIS** (osirisai.live, API publique sans clé) — vols temps réel (ADS-B), satellites (positions TLE), zones de conflit, séismes USGS
+- **OSIRIS** (osirisai.live, API publique sans clé) — vols temps réel (ADS-B), satellites, zones de conflit, séismes USGS
 
-Navigation par **vues séparées** : onglets NEWS / VOLS / SATS / CONFLITS / SÉISMES au-dessus de la carte. Temps réel via **SSE**.
+Navigation par **vues séparées** : onglets NEWS / VOLS / SATS / CONFLITS / SÉISMES. Rafraîchissement par **polling 45 s**.
 
 ## Stack
 
-- **Backend** : **Bun** (≥1.4) + **Hono** (un seul langage, zéro base de données — état en mémoire)
-- **Front** : HTML/CSS/JS vanilla + **MapLibre GL** (tuiles Carto Dark, sans clé API)
-- **Temps réel** : Server-Sent Events (news + osiris sur le même stream)
+- **Front** : **Next.js 16** (export statique) + **TypeScript 7** (compilateur natif) + **Tailwind CSS 4** + **MapLibre GL** (tuiles Carto Positron, sans clé API)
+- **API** : **Hono** sur **Cloudflare Worker** (assets statiques + API + cron dans un seul Worker)
+- **État** : **KV** (binding `CACHE`), aucune base de données
 - **Sources** : flux RSS publics + API OSIRIS (aucune clé API requise)
+- **Qualité** : biome (lint + format), `tsc --noEmit` strict
 
 ## Lancer
 
 ```bash
 bun install
-bun start
-# → http://localhost:3000
+bun run dev        # front Next.js → http://localhost:3000
+bun run dev:api    # API Worker + KV local → http://localhost:8787
 ```
 
-Mode dev avec rechargement à chaud du serveur :
+En dev, le front appelle l'API sur la même origine par défaut ; pour pointer
+sur le Worker local, définir `NEXT_PUBLIC_API_BASE=http://localhost:8787`.
 
-```bash
-bun run dev
-```
-
-## Déploiement Cloudflare (Workers + assets)
-
-Un seul Worker sert le front statique **et** l'API : état en **KV**, refresh piloté par un **Cron minute**, polling 45 s côté front à la place du SSE (impossible entre isolates Workers). Le dev Bun local garde le SSE tel quel.
+## Déploiement Cloudflare (1 Worker : assets + API + cron)
 
 ```bash
 bun run kv:create    # crée le namespace KV, copier l'id dans wrangler.jsonc
-bun run deploy       # wrangler deploy
-# → https://world-pulse.<ton-sous-domaine>.workers.dev
+bun run deploy       # build (export out/) + wrangler deploy
+# → https://worldpulse.<ton-sous-domaine>.workers.dev
 ```
 
-Test local du Worker (workerd + KV simulé) :
+Test local du Worker complet (assets + API + KV simulé) :
 
 ```bash
-bun run preview      # wrangler dev
+bun run preview
 ```
 
-| | Dev (Bun) | Prod (Cloudflare) |
-|---|---|---|
-| Front + API | même process, un serveur | même Worker, assets statiques |
-| État | mémoire (6 h) | KV (`snapshot`, reécrit à chaque cron) |
-| Refresh | `setInterval` 90 s / 60 s | Cron minute + TTL respectés |
-| Temps réel | SSE | polling 45 s (`/api/stream` renvoie 204) |
+## Budget free tier Cloudflare (objectif : < 20 % de chaque quota)
+
+| Ressource | Quota gratuit | Conso | % |
+|---|---|---|---|
+| Écrits KV | 1 000/jour | cron `*/10` = 144 écrits (+ scans manuels) | **~15 %** |
+| Lectures KV | 100 000/jour | 1 lecture/API call, `Cache-Control: 30 s` en edge | faible |
+| Requêtes Worker | 100 000/jour | cron 144/j + polling API (assets statiques **gratuits et illimités**) | faible |
+| Stockage KV | 1 GB | 1 snapshot (~200 Ko) | négligeable |
+
+Le levier principal est la **période du cron** (1 écriture KV par passage) :
+`*/10` garde les écrits sous 15 % du quota. Les réponses API sont cachées 30 s
+(edge + navigateur) pour absorber le polling sans marteler KV.
 
 ## Fonctionnement
 
 ### News (RSS)
-1. Au démarrage puis toutes les **90 s**, le serveur récupère tous les flux (en parallèle).
-2. Chaque titre est passé dans un détecteur de pays par mots-clés (`server/geo.js` — ~70 pays + ~90 villes, FR + EN).
-3. Les items géolocalisés sont dédupliqués, dotés d'un **niveau d'intensité** (1 faible / 2 moyen / 3 fort selon mots de gravité) et stockés en mémoire (6 h de rétention, max 400).
-4. Les nouveaux events sont diffusés en **SSE** → pulsations animées sur la carte + flux latéral (du plus récent en haut).
-5. **Regroupement** : les articles partageant la même zone (pays ou ville) forment un seul marqueur avec un badge compteur ; le bloc détail propose une navigation ‹ › du + récent au + ancien.
-6. **Filtre de sources** : un select dans le panneau FLUX filtre flux et carte sur une rédaction.
-7. Bouton **SCAN** dans la barre supérieure : relance manuelle d'un scan (throttle 30 s, retour visuel sur le bouton). Légende d'intensité repliable en bas à gauche.
+1. Le cron (10 min) hydrate la mémoire de l'isolate depuis KV, scanne les 16 flux en parallèle, re-persiste le snapshot.
+2. Chaque titre passe dans un détecteur de pays par mots-clés (`src/worker/geo.ts` — ~70 pays + ~90 villes, FR + EN).
+3. Items géolocalisés, dédupliqués, avec **intensité** (1 faible / 2 moyen / 3 fort selon mots de gravité), rétention 6 h, max 400.
+4. **Regroupement** : les articles partageant la même zone forment un marqueur avec badge compteur ; le panneau détail propose une navigation ‹ › du + récent au + ancien.
+5. **Filtre de sources** : un select dans le panneau FLUX filtre flux et carte.
+6. Bouton **SCAN** : scan manuel (throttle 30 s côté serveur).
 
 ### OSIRIS (vols, satellites, conflits, séismes)
-1. Au démarrage puis toutes les **60 s**, le connecteur (`server/osiris.js`) interroge 4 endpoints d'osirisai.live — chacun avec son propre TTL (60–120 s) pour respecter les caches amont.
-2. Les données sont **normalisées** dans un format event unifié `{ id, kind, lat, lng, title, sub, url, ts, intensity, meta }` — le même contrat que les news.
-3. Vols et satellites sont **échantillonnés géographiquement** (buckets 10°×10°) pour rester à ~250/60 marqueurs, le DOM ne voit jamais les 9 000 avions bruts.
-4. Diffusion via le même stream SSE (event `osiris`), snapshot initial via `GET /api/osiris`.
-5. Côté front, chaque vue a ses marqueurs dédiés (losange cyan = vol, carré jaune = satellite, disque rouge = conflit, carré orange = séisme) et son flux latéral.
+1. À chaque cycle, le connecteur (`src/worker/osiris.ts`) interroge 4 endpoints — TTL par feed (60–120 s) pour respecter les caches amont.
+2. Normalisation dans le format event unifié `{ id, kind, lat, lng, title, sub, url, ts, intensity, meta }`.
+3. Vols et satellites **échantillonnés géographiquement** (buckets 10°×10°) → ~250/60 marqueurs max, le DOM ne voit jamais les 9 000 avions bruts. Rétention 15 min.
+4. Chaque vue a ses marqueurs dédiés (losange bleu = vol, carré ambre = satellite, disque rouge = conflit, carré orange = séisme).
 
 ### Positionnement en deux niveaux
-
-Dézoomé, chaque event est placé sur le **centroïde du pays** (évite l'empilement). À partir du zoom 3, si une **ville** est mentionnée dans le titre (ex. "Beijing", "Miami"), le marqueur se repositionne précisément sur elle.
+Dézoomé (< zoom 3), chaque event est placé sur le **centroïde du pays**. À partir du zoom 3, si une **ville** est mentionnée dans le titre, le marqueur se repositionne sur elle.
 
 ### Intensités
 
 | Niveau | Couleur | Exemples de mots-déclencheurs |
 |---|---|---|
-| 1 · faible | cyan `#37f0c2` | (défaut) |
-| 2 · moyen | orange `#ffb347` | crisis, protest, sanction, election… |
-| 3 · fort | rouge `#ff5470` | war, attack, killed, earthquake, explosion… |
-
-> **Note Reddit** : désactivé — Reddit bloque les requêtes serveur (403, fingerprint TLS). Pour le réintégrer : API Reddit officielle (OAuth) ou proxy navigateur headless.
-
-## Structure
-
-```
-server/
-  server.js        # Hono (Bun) : API + SSE + statiques (dev local)
-  worker.js        # entrée Cloudflare Workers : API + KV + Cron
-  aggregator.js    # collecte news, dédoublonnage, diffusion
-  osiris.js        # connecteur OSIRIS : vols, sats, conflits, séismes
-  sources.js       # liste des flux RSS
-  rssParser.js     # parseur RSS (fast-xml-parser)
-  fetchClient.js   # fetch avec timeout + retries
-  geo.js           # détection pays par mots-clés
-wrangler.jsonc      # config Cloudflare (assets, KV, cron)
-public/
-  index.html       # structure de la page (+ onglets de vues)
-  style.css        # thème dark tech
-  app.js           # carte MapLibre + SSE + marqueurs animés + vues
-```
-
-## API
-
-| Endpoint | Description |
-|---|---|
-| `GET /api/events` | Snapshot des news géolocalisées |
-| `GET /api/osiris` | Snapshot des items OSIRIS normalisés |
-| `POST /api/osiris/refresh` | Force un refresh OSIRIS (bypass TTL) |
-| `POST /api/refresh` | Force un scan RSS (throttle 30 s) |
-| `GET /api/health` | Liveness + stats |
-| `GET /api/stream` | Stream SSE (events `hello`, `events`, `osiris`) — dev Bun uniquement |
-
-## Limites connues du MVP
-
-- La détection pays est **heuristique** (mots-clés) : elle génère du bruit (ex. "Paris 2024" → France) et des manques. Une étape NLP (geotagging) est la suite naturelle.
-- Twitter/X est **payant** (API ~100 $/mois) et Reddit **bloque les clients serveur** → tous deux volontairement exclus du MVP ; connecteurs optionnels prévus.
-- Un seul process, état en mémoire : pour scaler, ajouter Redis + plusieurs workers.
-- Sur Cloudflare, les quotas KV (lectures 100 k/jour en gratuit) sont absorbés par un `Cache-Control: max-age=30` sur l'API ; le Cron gratuit est limité à ~10 ms CPU — si les 16 flux font déborder un scan, passer sur le plan payant (30 s).
-- Certains flux peuvent bloquer ou ralentir — le fetcher a timeout + retries et tolère les échecs par source.
-
-## Pistes d'évolution
-
-- CCTV : couche caméras publiques via `osirisai.live/api/cctv` (déjà normalisé côté Osiris)
-- Maritime : ports, chokepoints et positions AIS via `osirisai.live/api/maritime`
-- Cyber : CVE et malwares géolocalisés via `osirisai.live/api/cyber-*`
-- Clustering des articles sur le même événement (similarité de titres)
-- Catégorisation (conflit, économie, catastrophe…) avec code couleur
-- Historique animé ("replay" des dernières 24 h)
-- Connecteur GDELT (events géolocalisés déjà prêts, gratuit)
-- Réintégration Reddit via API officielle OAuth
-- Auto-héberger OSIRIS (open source MIT : github.com/simplifaisoul/osiris) pour fiabiliser la source amont
+| 1 · faible | teal `#0d9488` | (défaut) |
+| 2 · moyen | ambre `#d97706` | crisis, protest, election, court… |
+| 3 · fort | rouge `#dc2626` | war, attack, killed, earthquake… |

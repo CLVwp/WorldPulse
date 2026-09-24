@@ -1,24 +1,36 @@
 {
-  "name": "world-pulse",
-  "version": "0.1.0",
-  "description": "MVP — Carte du monde des actualités : events géolocalisés depuis RSS, temps réel via SSE.",
-  "main": "server/server.js",
-  "type": "module",
+  "name": "worldpulse",
+  "version": "0.2.0",
+  "private": true,
+  "description": "MVP — Carte du monde des actualités : events géolocalisés depuis RSS + OSIRIS, polling temps réel.",
   "scripts": {
-    "start": "bun run server/server.js",
-    "dev": "bun --hot server/server.js",
-    "preview": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "kv:create": "wrangler kv namespace create CACHE"
-  },
-  "engines": {
-    "bun": ">=1.4"
+    "dev": "bun --bun next dev",
+    "dev:api": "wrangler dev",
+    "build": "bun --bun next build",
+    "deploy": "bun run build && bunx wrangler deploy",
+    "preview": "bun run build && wrangler dev",
+    "kv:create": "wrangler kv namespace create CACHE",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "fast-xml-parser": "^5.7.0",
-    "hono": "^4.6.0"
+    "hono": "^4.6.0",
+    "maplibre-gl": "^4.7.1",
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.2",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^20.19.43",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
     "wrangler": "^4.136.3"
-  }
+  },
+  "packageManager": "bun@1.4.2"
 }

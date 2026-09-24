@@ -1,0 +1,202 @@
+@import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+/* ─── Theme tokens (reprise du portefolio : papier off-white) ─── */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-hairline: var(--hairline);
+  --color-hover: var(--hover);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  --bg: #eae5da;
+  --fg: #0a0a0a;
+  --fg-muted: rgb(0 0 0 / 55%);
+  --fg-faint: rgb(0 0 0 / 35%);
+  --hairline: rgb(0 0 0 / 12%);
+  --hover: rgb(0 0 0 / 4%);
+}
+
+@layer base {
+  body {
+    @apply bg-bg font-sans text-fg;
+  }
+}
+
+/* ─── Marqueurs WorldPulse (couleur portée par currentColor) ─── */
+
+.event-marker,
+.osiris-marker {
+  cursor: pointer;
+}
+
+.event-marker .ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0.23);
+  border: 1.5px solid currentColor;
+  animation: marker-ring 2.6s infinite;
+}
+
+/* Transform-only : animer width/height déclenche du layout à chaque frame. */
+@keyframes marker-ring {
+  0% {
+    transform: translate(-50%, -50%) scale(0.23);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
+.event-marker .core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 55%),
+    0 0 12px -2px currentColor;
+}
+
+.event-marker.hot .core {
+  width: 12px;
+  height: 12px;
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 55%),
+    0 0 16px currentColor;
+}
+
+/* Badge : nombre d'articles groupés au même endroit */
+.event-marker .badge {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg);
+  border: 1px solid currentColor;
+  border-radius: 9px;
+  color: currentColor;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+/* Formes par type OSIRIS : losange = vol, carré = satellite,
+   disque = conflit, carré arrondi = séisme. */
+.osiris-marker .core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 0 0 3px rgb(255 255 255 / 55%),
+    0 0 10px -2px currentColor;
+}
+.osiris-marker.kind-flight .core {
+  border-radius: 1px;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.osiris-marker.kind-satellite .core {
+  border-radius: 0;
+}
+.osiris-marker.kind-earthquake .core {
+  border-radius: 2px;
+  width: 9px;
+  height: 9px;
+}
+
+/* ─── Flux : entrée animée des nouveaux items ─── */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.feed-item-new {
+  animation: slide-in 0.35s ease;
+}
+
+/* ─── Divers ─── */
+@keyframes dot-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.dot-blink {
+  animation: dot-blink 2.4s infinite;
+}
+.pulse-ring::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  animation: ring 1.8s infinite;
+}
+@keyframes ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* Scrollbar fine du flux */
+.feed-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.feed-scroll::-webkit-scrollbar-thumb {
+  background: rgb(0 0 0 / 20%);
+  border-radius: 3px;
+}
+
+/* Contrôles maplibre accordés au papier (spécificité > styles maplibre) */
+.maplibregl-ctrl.maplibregl-ctrl-group {
+  border-radius: 0;
+  border-color: var(--hairline);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-marker .ring,
+  .pulse-ring::after,
+  .dot-blink {
+    animation: none;
+  }
+  .feed-item-new {
+    animation: none;
+  }
+}
